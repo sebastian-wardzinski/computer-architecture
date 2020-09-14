@@ -66,6 +66,19 @@
 #include "sim.h"
 
 
+/* ECE552 Pre-Assignment - BEGIN CODE*/
+
+// To track number of load instructions
+static counter_t sim_num_loads = 0;
+
+// Declare array that old ready times for each register
+static counter_t reg_ready[MD_TOTAL_REGS];
+
+// Track number of load-to-use hazards
+static counter_t sim_num_lduh = 0;
+
+/* ECE552 Pre-Assignment - END CODE*/
+
 /* ECE552 Assignment 1 - STATS COUNTERS - BEGIN */
 static counter_t sim_num_RAW_hazard_q1;
 static counter_t sim_num_RAW_hazard_q2;
@@ -152,6 +165,26 @@ sim_reg_stats(struct stat_sdb_t *sdb)
 		   "1" /* ECE552 - MUST ADD YOUR FORMULA */, NULL);
 
   /* ECE552 Assignment 1 - END CODE */
+
+  /* ECE552 Pre-Assignment - BEGIN CODE*/
+
+  stat_reg_counter(sdb, "sim_num_loads",
+            "total number of load instructions",
+            &sim_num_loads, sim_num_loads, NULL);
+
+  stat_reg_formula(sdb, "sim_load_ratio",
+            "load instruction fraction",
+            "sim_num_loads / sim_num_insn", NULL);
+
+  stat_reg_counter(sdb, "sim_num_lduh",
+            "total number of load use hazards",
+            &sim_num_lduh, sim_num_lduh, NULL);
+
+  stat_reg_formula(sdb, "sim_load_use_ratio",
+            "load use fraction",
+            "sim_num_lduh / sim_num_insn", NULL);
+
+  /* ECE552 Pre-Assignment - END CODE*/
 
   ld_reg_stats(sdb);
   mem_reg_stats(mem, sdb);
@@ -307,6 +340,13 @@ sim_uninit(void)
 void
 sim_main(void)
 {
+
+  /* ECE552 Pre-Assignment - BEGIN CODE*/
+  
+  int r_out[2], r_in[3];
+  
+  /* ECE552 Pre-Assignment - END CODE*/
+
   md_inst_t inst;
   register md_addr_t addr;
   enum md_opcode op;
@@ -351,10 +391,21 @@ sim_main(void)
 
       switch (op)
 	{
+
+/* ECE552 Pre-Assignment - BEGIN CODE*/
+
 #define DEFINST(OP,MSK,NAME,OPFORM,RES,FLAGS,O1,O2,I1,I2,I3)		\
 	case OP:							\
+          r_out[0] = O1;\
+          r_out[1] = 02;\
+          r_in[0] = I1;\
+          r_in[1] = I2;\
+          r_in[2] = I3;\
           SYMCAT(OP,_IMPL);						\
           break;
+
+/* ECE552 Pre-Assignment - END CODE*/
+
 #define DEFLINK(OP,MSK,NAME,MASK,SHIFT)					\
         case OP:							\
           panic("attempted to execute a linking opcode");
@@ -365,6 +416,40 @@ sim_main(void)
 	default:
 	  panic("attempted to execute a bogus opcode");
       }
+
+    /* ECE552 Pre-Assignment - BEGIN CODE*/
+
+    // Determine whether a load instruction occured
+    if ( (MD_OP_FLAGS(op) & F_MEM) && (MD_OP_FLAGS(op) & F_LOAD) ) 
+        sim_num_loads++;
+
+    // At this instruction, determine how many load-to-use hazards occured
+    int i;
+    for (i = 0; i < 3; i++) 
+    {
+        if (r_in[i] != DNA && reg_ready [r_in [i]] > sim_num_insn) 
+        {
+            if ((i == 0) && (MD_OP_FLAGS(op) & F_MEM) && (MD_OP_FLAGS(op) & F_STORE)) 
+            {
+                continue;
+            }
+            
+            sim_num_lduh++;
+            break;
+        }
+    }
+
+    // Update the register ready array on loads
+    if ((MD_OP_FLAGS(op) & F_MEM) && (MD_OP_FLAGS(op) & F_LOAD)) {
+        if (r_out[0] != DNA) {
+            reg_ready[r_out[0]] = sim_num_insn + 2;
+        }
+        if (r_out[1] != DNA) {
+            reg_ready[r_out[1]] = sim_num_insn + 2;
+        }
+    }
+
+    /* ECE552 Pre-Assignment - END CODE*/
 
       if (fault != md_fault_none)
 	fatal("fault (%d) detected @ 0x%08p", fault, regs.regs_PC);
