@@ -52,6 +52,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stdbool.h>
 
 #include "host.h"
 #include "misc.h"
@@ -71,7 +72,7 @@
 // To track number of load instructions
 static counter_t sim_num_loads = 0;
 
-// Declare array that old ready times for each register
+// Declare array that hold ready times for each register
 static counter_t reg_ready[MD_TOTAL_REGS];
 
 // Track number of load-to-use hazards
@@ -79,10 +80,24 @@ static counter_t sim_num_lduh = 0;
 
 /* ECE552 Pre-Assignment - END CODE*/
 
-/* ECE552 Assignment 1 - STATS COUNTERS - BEGIN */
-static counter_t sim_num_RAW_hazard_q1;
-static counter_t sim_num_RAW_hazard_q2;
-/* ECE552 Assignment 1 - STATS COUNTERS - END */
+/* ECE552 Assignment 1 - BEGIN */
+
+// Declare array that hold ready times for each register
+static counter_t reg_ready_written_q1[MD_TOTAL_REGS];   // for RAW hazards for 5-stage pipeline
+static counter_t reg_ready_written_q2[MD_TOTAL_REGS];   // for RAW hazards for 6-stage pipeline
+static counter_t reg_ready_lduh_q2[MD_TOTAL_REGS];      // for load-to-use hazards for 6-stage pipeline
+
+// Stats counters
+static counter_t sim_num_writes = 0;
+static counter_t sim_num_RAW_hazard_q1_1cycle = 0;
+static counter_t sim_num_RAW_hazard_q1_2cycle = 0;
+static counter_t sim_num_RAW_hazard_q1 = 0;     // Obligatory
+
+static counter_t sim_num_RAW_hazard_q2_lduh_1cycle = 0;
+static counter_t sim_num_RAW_hazard_q2_lduh_2cycle = 0;
+static counter_t sim_num_RAW_hazard_q2_rawNotLduh_1cycle = 0;
+static counter_t sim_num_RAW_hazard_q2 = 0;     // Obligatory
+/* ECE552 Assignment 1 - END */
 
 /*
  * This file implements a functional simulator.  This functional simulator is
@@ -148,21 +163,45 @@ sim_reg_stats(struct stat_sdb_t *sdb)
 
   /* ECE552 Assignment 1 - BEGIN CODE */
 
-  stat_reg_counter(sdb, "sim_num_RAW_hazard_q1",
+  stat_reg_counter(sdb, "sim_num_writes",
+		   "total number of writes (q1)",
+		    &sim_num_writes, sim_num_writes, NULL);
+
+  stat_reg_counter(sdb, "sim_num_RAW_hazard_q1_1cycle",
+		   "total number of 1 cycle RAW hazards (q1)",
+		    &sim_num_RAW_hazard_q1_1cycle, sim_num_RAW_hazard_q1_1cycle, NULL);
+        
+  stat_reg_counter(sdb, "sim_num_RAW_hazard_q1_2cycle",
+		   "total number of 2 cycle RAW hazards (q1)",
+		    &sim_num_RAW_hazard_q1_2cycle, sim_num_RAW_hazard_q1_2cycle, NULL);
+  
+  stat_reg_formula(sdb, "sim_num_RAW_hazard_q1",    // Obligatory
 		   "total number of RAW hazards (q1)",
-		   &sim_num_RAW_hazard_q1, sim_num_RAW_hazard_q1, NULL);
+		    "sim_num_RAW_hazard_q1_1cycle + sim_num_RAW_hazard_q1_2cycle", NULL);
 
-  stat_reg_counter(sdb, "sim_num_RAW_hazard_q2",
+  stat_reg_counter(sdb, "sim_num_RAW_hazard_q2_lduh_1cycle",
+		   "total number of 1 cycle load-to-use hazards (q2)",
+		    &sim_num_RAW_hazard_q2_lduh_1cycle, sim_num_RAW_hazard_q2_lduh_1cycle, NULL);
+        
+  stat_reg_counter(sdb, "sim_num_RAW_hazard_q2_lduh_2cycle",
+		   "total number of 2 cycle load-to-use hazards (q2)",
+		    &sim_num_RAW_hazard_q2_lduh_2cycle, sim_num_RAW_hazard_q2_lduh_2cycle, NULL);
+
+  stat_reg_counter(sdb, "sim_num_RAW_hazard_q2_rawNotLduh_1cycle",
+		   "total number of 1 cycle RAW hazards that are not load-to-use hazards (q2)",
+		    &sim_num_RAW_hazard_q2_rawNotLduh_1cycle, sim_num_RAW_hazard_q2_rawNotLduh_1cycle, NULL);
+  
+  stat_reg_formula(sdb, "sim_num_RAW_hazard_q2",    // Obligatory
 		   "total number of RAW hazards (q2)",
-		   &sim_num_RAW_hazard_q2, sim_num_RAW_hazard_q2, NULL);
-
-  stat_reg_formula(sdb, "CPI_from_RAW_hazard_q1",
+		   "sim_num_RAW_hazard_q2_lduh_1cycle + sim_num_RAW_hazard_q2_lduh_2cycle + sim_num_RAW_hazard_q2_rawNotLduh_1cycle", NULL);
+  
+  stat_reg_formula(sdb, "CPI_from_RAW_hazard_q1",   // Obligatory
 		   "CPI from RAW hazard (q1)",
-		   "1" /* ECE552 - MUST ADD YOUR FORMULA */, NULL);
-
-  stat_reg_formula(sdb, "CPI_from_RAW_hazard_q2",
+		   "1 + (sim_num_RAW_hazard_q1_1cycle + 2*sim_num_RAW_hazard_q1_2cycle) / sim_num_insn", NULL);
+  
+  stat_reg_formula(sdb, "CPI_from_RAW_hazard_q2",   // Obligatory
 		   "CPI from RAW hazard (q2)",
-		   "1" /* ECE552 - MUST ADD YOUR FORMULA */, NULL);
+		   "1 + (sim_num_RAW_hazard_q2_lduh_1cycle + 2*sim_num_RAW_hazard_q2_lduh_2cycle + sim_num_RAW_hazard_q2_rawNotLduh_1cycle) / sim_num_insn", NULL);
 
   /* ECE552 Assignment 1 - END CODE */
 
@@ -396,11 +435,8 @@ sim_main(void)
 
 #define DEFINST(OP,MSK,NAME,OPFORM,RES,FLAGS,O1,O2,I1,I2,I3)		\
 	case OP:							\
-          r_out[0] = O1;\
-          r_out[1] = 02;\
-          r_in[0] = I1;\
-          r_in[1] = I2;\
-          r_in[2] = I3;\
+          r_out[0] = O1; r_out[1] = O2;\
+          r_in[0] = I1; r_in[1] = I2; r_in[2] = I3;\
           SYMCAT(OP,_IMPL);						\
           break;
 
@@ -417,20 +453,12 @@ sim_main(void)
 	  panic("attempted to execute a bogus opcode");
       }
 
-    /* ECE552 Pre-Assignment - BEGIN CODE*/
+    /* ECE552 Pre-Assignment - BEGIN CODE */
 
-    // Determine whether a load instruction occured
-    if ( (MD_OP_FLAGS(op) & F_MEM) && (MD_OP_FLAGS(op) & F_LOAD) ) 
-        sim_num_loads++;
-
-    // At this instruction, determine how many load-to-use hazards occured
-    int i;
-    for (i = 0; i < 3; i++) 
-    {
-        if (r_in[i] != DNA && reg_ready [r_in [i]] > sim_num_insn) 
-        {
-            if ((i == 0) && (MD_OP_FLAGS(op) & F_MEM) && (MD_OP_FLAGS(op) & F_STORE)) 
-            {
+    // Find if the given instruction has a load-to-use hazard
+    for (int i = 0; i < 3; i++) {
+        if (r_in[i] != DNA && reg_ready[r_in [i]] > sim_num_insn) {
+            if ((i == 0) && (MD_OP_FLAGS(op) & F_STORE)) {
                 continue;
             }
             
@@ -438,18 +466,97 @@ sim_main(void)
             break;
         }
     }
+    /* ECE552 Pre-Assignment - END CODE */
 
-    // Update the register ready array on loads
-    if ((MD_OP_FLAGS(op) & F_MEM) && (MD_OP_FLAGS(op) & F_LOAD)) {
-        if (r_out[0] != DNA) {
-            reg_ready[r_out[0]] = sim_num_insn + 2;
-        }
-        if (r_out[1] != DNA) {
-            reg_ready[r_out[1]] = sim_num_insn + 2;
+    /* ECE552 Assignment 1 - BEGIN CODE */
+
+    /* 
+      QUESTION 1 HAZARD DETECTION
+    */
+    bool twoCycle = false;
+    bool oneCycle = false;
+    // Find any RAW hazards in this instruction
+    for (int i = 0; i < 3; i++) {
+        if (r_in[i] != DNA && reg_ready_written_q1[r_in[i]] > sim_num_insn) {
+            if (reg_ready_written_q1[r_in[i]] - sim_num_insn == 2) {
+                twoCycle = true; 
+                reg_ready_written_q1[r_in[i]] = sim_num_insn;   // to avoid double-counting cascading stalls
+            } else if (reg_ready_written_q1[r_in[i]] - sim_num_insn == 1) {
+                oneCycle = true;
+            } 
         }
     }
 
-    /* ECE552 Pre-Assignment - END CODE*/
+    // Record the longest RAW hazard that occured
+    if (twoCycle) {
+        sim_num_RAW_hazard_q1_2cycle++;
+    } else if (oneCycle) {
+        sim_num_RAW_hazard_q1_1cycle++;
+    }
+
+    /* 
+      QUESTION 2 HAZARD DETECTION
+    */
+    twoCycle = false;
+    oneCycle = false;
+    bool oneCycleRAW = false;
+    for (int i = 0; i < 3; i++) {
+        // Find any load-to-use hazards in this instruction
+        if (r_in[i] != DNA && reg_ready_lduh_q2[r_in [i]] > sim_num_insn) {
+            if ((i == 0) && (MD_OP_FLAGS(op) & F_STORE)) {    // the store value wouldn't cause a hazard
+                continue;
+            }
+            if (reg_ready_lduh_q2[r_in[i]] - sim_num_insn == 2) {
+                twoCycle = true; 
+                reg_ready_lduh_q2[r_in[i]] = sim_num_insn;    // to avoid double-counting cascading stalls
+            } else if (reg_ready_lduh_q2[r_in[i]] - sim_num_insn == 1) {
+                oneCycle = true;
+            }
+        } 
+        // Find any other RAW hazards that are not caused by store values
+        else if (r_in[i] != DNA && reg_ready_written_q2[r_in[i]] > sim_num_insn) {
+            if (!((i == 0) && (MD_OP_FLAGS(op) & F_STORE))) { // the store value wouldn't cause a hazard
+                oneCycleRAW = true;
+            }
+        }
+    }
+
+    // Record the longest load-to-use/RAW hazard that occured
+    if (twoCycle) {
+        sim_num_RAW_hazard_q2_lduh_2cycle++;
+    } else if (oneCycle) {
+        sim_num_RAW_hazard_q2_lduh_1cycle++;
+    } else if (oneCycleRAW) {
+        sim_num_RAW_hazard_q2_rawNotLduh_1cycle++;
+    }
+
+    /* 
+      UPDATE REGISTER READY-TIME ARRAYS
+    */
+    // for tracking load-to-use hazards
+    if (MD_OP_FLAGS(op) & F_LOAD) {
+        sim_num_loads++;
+        for (int i = 0; i < 2; i++){
+            if (r_out[i] != DNA) {
+                reg_ready[r_out[i]] = sim_num_insn + 2;         // from pre-assignment
+                reg_ready_lduh_q2[r_out[i]] = sim_num_insn + 3;
+            }
+        }
+    }
+
+    // for tracking RAW hazards
+    if ((MD_OP_FLAGS(op) & F_LOAD) || (MD_OP_FLAGS(op) & F_ICOMP)){
+        sim_num_writes++;
+        for (int i = 0; i < 2; i++) {
+            if (r_out[i] != DNA) {
+                reg_ready_written_q1[r_out[i]] = sim_num_insn + 3;
+                reg_ready_written_q2[r_out[i]] = sim_num_insn + 2;
+            }
+        }
+    }
+
+    /* ECE552 Assignment 1 - END CODE */
+
 
       if (fault != md_fault_none)
 	fatal("fault (%d) detected @ 0x%08p", fault, regs.regs_PC);
