@@ -1,0 +1,16 @@
+echo 'astar'
+predictor /cad2/ece552f/cbp4_benchmarks/astar.cbp4.gz
+echo 'bwaves'
+predictor /cad2/ece552f/cbp4_benchmarks/bwaves.cbp4.gz
+echo 'bzip2'
+predictor /cad2/ece552f/cbp4_benchmarks/bzip2.cbp4.gz
+echo 'gcc'
+predictor /cad2/ece552f/cbp4_benchmarks/gcc.cbp4.gz
+echo 'gromacs'
+predictor /cad2/ece552f/cbp4_benchmarks/gromacs.cbp4.gz
+echo 'hmmer'
+predictor /cad2/ece552f/cbp4_benchmarks/hmmer.cbp4.gz
+echo 'mcf'
+predictor /cad2/ece552f/cbp4_benchmarks/mcf.cbp4.gz
+echo 'soplex'
+predictor /cad2/ece552f/cbp4_benchmarks/soplex.cbp4.gz

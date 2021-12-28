@@ -1,0 +1,62 @@
+Cache size                    : 8192
+Block size                    : 1
+Associativity                 : 1
+Read only ports               : 0
+Write only ports              : 0
+Read write ports              : 1
+Single ended read ports       : 0
+Cache banks (UCA)             : 1
+Technology                    : 0.032
+Temperature                   : 350
+Tag size                      : 42
+cache type                    : Scratch RAM
+Model as memory               : 0
+Access mode                   : 0
+Data array cell type          : 0
+Data array peripheral type    : 0
+Tag array cell type           : 0
+Tag array peripheral type     : 0
+Design objective (UCA wt)     : 0 0 0 0 100
+Design objective (UCA dev)    : 60 100000 100000 100000 1000000
+Design objective (NUCA wt)    : 0 0 0 0 0
+Design objective (NUCA dev)   : 0 0 0 0 0
+Cache model                   : 0
+Nuca bank                     : 0
+Wire inside mat               : 2
+Wire outside mat              : 2
+Interconnect projection       : 1
+Wire signalling               : 1
+Cores                         : 0
+Print level                   : 0
+ECC overhead                  : 0
+Page size                     : 8192
+Burst length                  : 1
+Internal prefetch width       : 8
+Force cache config            : 0
+
+---------- CACTI version 6.5, Uniform Cache Access SRAM Model ----------
+
+Cache Parameters:
+    Total cache size (bytes): 8192
+    Number of banks: 1
+    Associativity: direct mapped
+    Block size (bytes): 1
+    Read/write Ports: 1
+    Read ports: 0
+    Write ports: 0
+    Technology size (nm): 32
+
+    Access time (ns): 0.279886
+    Cycle time (ns):  0.277706
+    Total dynamic read energy per access (nJ): 0.0022076
+    Total leakage power of a bank (mW): 2.87418
+    Cache height x width (mm): 0.133416 x 0.0953244
+
+    Best Ndwl : 1
+    Best Ndbl : 1
+    Best Nspd : 32
+    Best Ndcm : 8
+    Best Ndsam L1 : 4
+    Best Ndsam L2 : 1
+
+    Data array, H-tree wire type: Delay optimized global wires
